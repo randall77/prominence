@@ -73,11 +73,32 @@ func print(a []prominenceRecord) string {
 // runTest parses s, computes prominences on it, and sorts and returns the results.
 func runTest(s string) []prominenceRecord {
 	var r []prominenceRecord
-	computeProminence(simpleReader(parseTest(s)), func(peak, col, dom cell, island bool) {
+	data := parseTest(s)
+	computeProminence(simpleReader(data), minx(data), maxx(data), func(peak, col, dom cell, island bool) {
 		r = append(r, prominenceRecord{peak, col, dom, island})
 	})
 	sort.Sort(byPeak(r))
 	return r
+}
+
+func minx(d []cell) coord {
+	x := d[0].p.x
+	for _, c := range d[1:] {
+		if c.p.x < x {
+			x = c.p.x
+		}
+	}
+	return x
+}
+
+func maxx(d []cell) coord {
+	x := d[0].p.x
+	for _, c := range d[1:] {
+		if c.p.x > x {
+			x = c.p.x
+		}
+	}
+	return x + 1
 }
 
 func TestSingle(t *testing.T) {
@@ -120,11 +141,11 @@ func TestPair(t *testing.T) {
 func TestTripleCol(t *testing.T) {
 	// Three islands come together at a single point.
 	got := runTest(`
-33833
-33633
-76567
-33333
-33333
+338333
+336333
+765673
+333333
+333333
 `)
 	want := []prominenceRecord{
 		{cell{point{2, 0}, 8}, cell{}, cell{}, true},
@@ -138,7 +159,7 @@ func TestTripleCol(t *testing.T) {
 }
 
 func TestJoin(t *testing.T) {
-	// Test merging multiple islands
+	// Test merging multiple islands.
 	got := runTest(`
 111111111111
 132425262728
@@ -151,6 +172,29 @@ func TestJoin(t *testing.T) {
 		{cell{point{7, 1}, 6}, cell{point{8, 1}, 2}, cell{point{9, 1}, 7}, false},
 		{cell{point{9, 1}, 7}, cell{point{10, 1}, 2}, cell{point{11, 1}, 8}, false},
 		{cell{point{11, 1}, 8}, cell{}, cell{}, true},
+	}
+	sort.Sort(byPeak(want))
+	if !equal(got, want) {
+		t.Errorf("want\n%s, got\n%s", print(want), print(got))
+	}
+}
+
+func TestWraparound(t *testing.T) {
+	// Test east-west (but not north-south) wraparound.
+	got := runTest(`
+1114111
+1115111
+1114111
+4532373
+1113111
+1116111
+1113111
+`)
+	want := []prominenceRecord{
+		{cell{point{3, 1}, 5}, cell{point{3, 3}, 2}, cell{point{5, 3}, 7}, false},
+		{cell{point{1, 3}, 5}, cell{point{6, 3}, 3}, cell{point{5, 3}, 7}, false},
+		{cell{point{3, 5}, 6}, cell{point{3, 3}, 2}, cell{point{5, 3}, 7}, false},
+		{cell{point{5, 3}, 7}, cell{}, cell{}, true},
 	}
 	sort.Sort(byPeak(want))
 	if !equal(got, want) {

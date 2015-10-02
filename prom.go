@@ -29,8 +29,6 @@ import (
 // We break altitude ties arbitrarily.  Internally, between
 // two equal-altitude samples the first one processed is
 // considered higher.
-//
-// TODO: handle world wraparound?
 
 const debug = false
 
@@ -113,7 +111,7 @@ type islandCount struct {
 //   col = key col for that peak
 //   dom = dominating peak
 //   island = is top of an island (or continent).
-func computeProminence(r reader, f func(peak, col, dom cell, island bool)) {
+func computeProminence(r reader, minx, maxx coord, f func(peak, col, dom cell, island bool)) {
 	// Turns out patches don't really help much.
 	// At least for NOAA-OCEAN, the average patch
 	// size is 1.15.  For finer grids it may help more and
@@ -163,6 +161,15 @@ func computeProminence(r reader, f func(peak, col, dom cell, island bool)) {
 		for _, d := range [4][2]coord{{0, 1}, {0, -1}, {1, 0}, {-1, 0}} {
 			// Find out which island is in this direction.
 			p := point{c.p.x + d[0], c.p.y + d[1]}
+
+			// Earth wraps around left-right
+			if p.x == maxx {
+				p.x = minx
+			}
+			if p.x == minx-1 {
+				p.x = maxx - 1
+			}
+
 			b := m[p]
 			i := b.i
 			n := b.n
