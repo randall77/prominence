@@ -40,6 +40,11 @@ func (data simpleDataSet) Pos(c cell) (lat, long, height float64) {
 	return float64(c.p.x), float64(c.p.y), float64(c.z)
 }
 func (data simpleDataSet) Reader() reader {
+	return simpleReader(data)
+}
+
+// simpleReader returns a reader which returns cells from data.
+func simpleReader(data []cell) reader {
 	i := 0
 	return func() (cell, bool) {
 		if i == len(data) {

@@ -21,9 +21,8 @@ func TestCellSort(t *testing.T) {
 	}
 
 	// sort using cellSort
-	d := simpleDataSet(cells)
 	var cells2 []cell
-	r := cellSort(d)
+	r := cellSort(simpleReader(cells))
 	for {
 		c, ok := r()
 		if !ok {
@@ -55,9 +54,8 @@ func TestCellSortBig(t *testing.T) {
 	}
 
 	// sort using cellSort
-	d := simpleDataSet(cells)
 	var cells2 []cell
-	r := cellSort(d)
+	r := cellSort(simpleReader(cells))
 	for {
 		c, ok := r()
 		if !ok {

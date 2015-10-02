@@ -47,7 +47,7 @@ func main() {
 	//printASCII(data)
 	minx, _, miny, _, _, _ := data.Bounds()
 
-	computeProminence(data, func(peak, col, dom cell, island bool) {
+	computeProminence(data.Reader(), func(peak, col, dom cell, island bool) {
 		prom := peak.z - col.z
 		_, _, meters := data.Pos(cell{point{minx, miny}, prom})
 		if meters < *minPtr {

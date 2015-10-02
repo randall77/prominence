@@ -73,7 +73,7 @@ func print(a []prominenceRecord) string {
 // runTest parses s, computes prominences on it, and sorts and returns the results.
 func runTest(s string) []prominenceRecord {
 	var r []prominenceRecord
-	computeProminence(simpleDataSet(parseTest(s)), func(peak, col, dom cell, island bool) {
+	computeProminence(simpleReader(parseTest(s)), func(peak, col, dom cell, island bool) {
 		r = append(r, prominenceRecord{peak, col, dom, island})
 	})
 	sort.Sort(byPeak(r))

@@ -113,7 +113,7 @@ type islandCount struct {
 //   col = key col for that peak
 //   dom = dominating peak
 //   island = is top of an island (or continent).
-func computeProminence(data dataSet, f func(peak, col, dom cell, island bool)) {
+func computeProminence(r reader, f func(peak, col, dom cell, island bool)) {
 	// Turns out patches don't really help much.
 	// At least for NOAA-OCEAN, the average patch
 	// size is 1.15.  For finer grids it may help more and
@@ -129,7 +129,7 @@ func computeProminence(data dataSet, f func(peak, col, dom cell, island bool)) {
 	*/
 
 	// Sort data in descending altitude.
-	r := cellSort(data)
+	r = cellSort(r)
 
 	// Keep track of the border of all the current islands.
 	// This is the major data structure that needs to be kept
