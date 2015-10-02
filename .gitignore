@@ -22,3 +22,11 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# Additions for this project
+# binary
+prominence
+# profile output
+cpu.out
+# data directory
+data
