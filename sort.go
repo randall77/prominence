@@ -66,9 +66,14 @@ func cellSort(r <-chan []cell) <-chan []cell {
 		chunkPool.Put(cslice)
 	}
 
+	// Flush writers.
+	for _, w := range wbufs {
+		w.Flush()
+	}
+
 	// Compute descending altitude order.
-	alts := make([]int, 0, len(wbufs))
-	for h := range wbufs {
+	alts := make([]int, 0, len(files))
+	for h := range files {
 		alts = append(alts, int(h))
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(alts)))
@@ -81,14 +86,8 @@ func cellSort(r <-chan []cell) <-chan []cell {
 		for _, a := range alts {
 			h := height(a)
 
-			// Finish writing the temporary file.
-			w := wbufs[h]
-			delete(wbufs, h)
-			w.Flush()
-			f := files[h]
-			delete(files, h)
-
 			// Read temporary file, send cells out.
+			f := files[h]
 			if _, err := f.Seek(0, 0); err != nil {
 				log.Fatal(err)
 			}
