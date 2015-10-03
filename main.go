@@ -52,29 +52,31 @@ func main() {
 	r := data.Reader()
 
 	// Wrap reader in sniffer that generates a PNG for the data set.
+	r2 := make(chan []cell, 1)
 	minx, maxx, miny, maxy, minz, maxz := data.Bounds()
 	const W = 2000
 	const H = 1000
 	m := &image.Gray{Pix: make([]uint8, W*H), Stride: W, Rect: image.Rectangle{Min: image.Point{0, 0}, Max: image.Point{W, H}}}
-	r2 := func() (cell, bool) {
-		c, ok := r()
-		if !ok {
-			w, err := os.Create("globe.png")
-			if err != nil {
-				log.Fatal(err)
+	go func() {
+		for cslice := range r {
+			for _, c := range cslice {
+				x := (c.p.x - minx) * W / (maxx - minx)
+				y := (c.p.y - miny) * H / (maxy - miny)
+				z := uint8(64 + (c.z-minz)*(256-64)/(maxz-minz))
+				if m.Pix[x+y*W] < z {
+					m.Pix[x+y*W] = z
+				}
 			}
-			png.Encode(w, m)
-			w.Close()
-			return cell{}, false
+			r2 <- cslice
 		}
-		x := (c.p.x - minx) * W / (maxx - minx)
-		y := (c.p.y - miny) * H / (maxy - miny)
-		z := uint8(64 + (c.z-minz)*(256-64)/(maxz-minz))
-		if m.Pix[x+y*W] < z {
-			m.Pix[x+y*W] = z
+		close(r2)
+		w, err := os.Create("globe.png")
+		if err != nil {
+			log.Fatal(err)
 		}
-		return c, true
-	}
+		png.Encode(w, m)
+		w.Close()
+	}()
 
 	computeProminence(r2, minx, maxx, func(peak, col, dom cell, island bool) {
 		prom := peak.z - col.z

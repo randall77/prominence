@@ -39,18 +39,17 @@ func (data simpleDataSet) Bounds() (minx, maxx coord, miny, maxy coord, minz, ma
 func (data simpleDataSet) Pos(c cell) (lat, long, height float64) {
 	return float64(c.p.x), float64(c.p.y), float64(c.z)
 }
-func (data simpleDataSet) Reader() reader {
-	return simpleReader(data)
+func (data simpleDataSet) Reader() <-chan []cell {
+	c := make(chan []cell, 1)
+	c <- data
+	close(c)
+	return c
 }
 
 // simpleReader returns a reader which returns cells from data.
-func simpleReader(data []cell) reader {
-	i := 0
-	return func() (cell, bool) {
-		if i == len(data) {
-			return cell{}, false
-		}
-		i++
-		return data[i-1], true
-	}
+func simpleReader(data []cell) <-chan []cell {
+	c := make(chan []cell, 1)
+	c <- data
+	close(c)
+	return c
 }

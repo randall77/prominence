@@ -51,56 +51,54 @@ func (file noaa16) Pos(c cell) (lat, long, height float64) {
 	return float64(c.p.x)/120 - 180, 90 - float64(c.p.y)/120, float64(c.z)
 }
 
-func (file noaa16) Reader() reader {
-	f, err := os.Open(string(file))
-	if err != nil {
-		log.Fatal(err)
-	}
-	r, err := gzip.NewReader(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-	t := tar.NewReader(r)
-
-	cnt := 0
-	var off struct{ size, x, y int }
-	var buf []byte
-	return func() (cell, bool) {
-	nextSample:
-		for len(buf) > 0 {
-			z := height(int16(int(buf[0]) + int(buf[1])<<8))
-			c := cnt
-			cnt++
-			buf = buf[2:]
-			if z == -500 { // -500 is ocean
+func (file noaa16) Reader() <-chan []cell {
+	c := make(chan []cell, 1)
+	go func() {
+		f, err := os.Open(string(file))
+		if err != nil {
+			log.Fatal(err)
+		}
+		r, err := gzip.NewReader(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		t := tar.NewReader(r)
+		var chunker cellChunker
+		chunker.c = c
+		for {
+			hdr, err := t.Next()
+			if err == io.EOF {
+				break // no more files
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			name := hdr.Name
+			if !strings.HasSuffix(name, "10g") {
+				// Skip non-data files.
+				// Why both a10g and a11g?
 				continue
 			}
-			return cell{point{coord(off.x + c%10800), coord(off.y + c/10800)}, z}, true
+			log.Print("reading " + name)
+			off := offsets[name[len(name)-4]]
+			buf, err := ioutil.ReadAll(t)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if len(buf) != 2*off.size {
+				log.Fatalf("bad # bytes, want %d got %d", 2*off.size, len(buf))
+			}
+			cnt := 0
+			for len(buf) > 0 {
+				alt := height(int16(int(buf[0]) + int(buf[1])<<8))
+				buf = buf[2:]
+				if alt != -500 { // -500 is ocean
+					chunker.send(cell{point{coord(off.x + cnt%10800), coord(off.y + cnt/10800)}, alt})
+				}
+				cnt++
+			}
 		}
-	nextFile:
-		hdr, err := t.Next()
-		if err == io.EOF {
-			return cell{}, false // no more files
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-		name := hdr.Name
-		if !strings.HasSuffix(name, "10g") {
-			// Skip non-data files.
-			// Why both a10g and a11g?
-			goto nextFile
-		}
-		log.Print("reading " + name)
-		off = offsets[name[len(name)-4]]
-		buf, err = ioutil.ReadAll(t)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if len(buf) != 2*off.size {
-			log.Fatalf("bad # bytes, want %d got %d", 2*off.size, len(buf))
-		}
-		cnt = 0
-		goto nextSample
-	}
+		chunker.close()
+	}()
+	return c
 }

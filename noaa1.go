@@ -32,38 +32,37 @@ func (file noaa1) Pos(c cell) (lat, long, height float64) {
 	return float64(c.p.x)/120 - 180, 50 - float64(c.p.y)/120, float64(c.z)
 }
 
-func (file noaa1) Reader() reader {
-	f, err := os.Open(string(file))
-	if err != nil {
-		log.Fatal(err)
-	}
-	r, err := gzip.NewReader(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Print("reading " + file)
-	buf, err := ioutil.ReadAll(r)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(buf) != 2*10800*6000 && len(buf) != 2*10800*4800 {
-		log.Fatalf("bad # bytes, want %d or %d, got %d", 2*10800*6000, 2*10800*4800, len(buf))
-	}
-
-	cnt := 0
-	return func() (cell, bool) {
-		for {
-			if len(buf) == 0 {
-				return cell{}, false
-			}
-			c := cnt
+func (file noaa1) Reader() <-chan []cell {
+	c := make(chan []cell, 1)
+	go func() {
+		f, err := os.Open(string(file))
+		if err != nil {
+			log.Fatal(err)
+		}
+		r, err := gzip.NewReader(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Print("reading " + file)
+		buf, err := ioutil.ReadAll(r)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if len(buf) != 2*10800*6000 && len(buf) != 2*10800*4800 {
+			log.Fatalf("bad # bytes, want %d or %d, got %d", 2*10800*6000, 2*10800*4800, len(buf))
+		}
+		var chunker cellChunker
+		chunker.c = c
+		cnt := 0
+		for len(buf) > 0 {
 			alt := height(int16(int(buf[0]) + int(buf[1])<<8))
 			buf = buf[2:]
-			cnt++
-			if alt == -500 { // -500 is ocean
-				continue
+			if alt != -500 { // -500 is ocean
+				chunker.send(cell{point{coord(cnt % 10800), coord(cnt / 10800)}, alt})
 			}
-			return cell{point{coord(c % 10800), coord(c / 10800)}, alt}, true
+			cnt++
 		}
-	}
+		chunker.close()
+	}()
+	return c
 }

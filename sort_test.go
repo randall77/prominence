@@ -23,12 +23,10 @@ func TestCellSort(t *testing.T) {
 	// sort using cellSort
 	var cells2 []cell
 	r := cellSort(simpleReader(cells))
-	for {
-		c, ok := r()
-		if !ok {
-			break
+	for cslice := range r {
+		for _, c := range cslice {
+			cells2 = append(cells2, c)
 		}
-		cells2 = append(cells2, c)
 	}
 
 	// sort using byDescendingAltitude
@@ -56,12 +54,10 @@ func TestCellSortBig(t *testing.T) {
 	// sort using cellSort
 	var cells2 []cell
 	r := cellSort(simpleReader(cells))
-	for {
-		c, ok := r()
-		if !ok {
-			break
+	for cslice := range r {
+		for _, c := range cslice {
+			cells2 = append(cells2, c)
 		}
-		cells2 = append(cells2, c)
 	}
 
 	// sort using byDescendingAltitude

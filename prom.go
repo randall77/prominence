@@ -111,7 +111,7 @@ type islandCount struct {
 //   col = key col for that peak
 //   dom = dominating peak
 //   island = is top of an island (or continent).
-func computeProminence(r reader, minx, maxx coord, f func(peak, col, dom cell, island bool)) {
+func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom cell, island bool)) {
 	// Turns out patches don't really help much.
 	// At least for NOAA-OCEAN, the average patch
 	// size is 1.15.  For finer grids it may help more and
@@ -143,126 +143,124 @@ func computeProminence(r reader, minx, maxx coord, f func(peak, col, dom cell, i
 	var neighborStore [4]islandCount
 
 	// Process all of the cells in sorted order.
-	for {
-		c, ok := r()
-		if !ok {
-			break
-		}
-		if debug {
-			fmt.Printf("@%v\n", c)
-		}
-		if len(m) > maxm {
-			maxm = len(m)
-		}
-		// Find unique neighboring islands of c plus their frequency.
-		neighbors := neighborStore[:0]
-		adj := 0
-	outer:
-		for _, d := range [4][2]coord{{0, 1}, {0, -1}, {1, 0}, {-1, 0}} {
-			// Find out which island is in this direction.
-			p := point{c.p.x + d[0], c.p.y + d[1]}
-
-			// Earth wraps around left-right
-			if p.x == maxx {
-				p.x = minx
-			}
-			if p.x == minx-1 {
-				p.x = maxx - 1
-			}
-
-			b := m[p]
-			i := b.i
-			n := b.n
-			if i == nil {
-				// No island is in this direction.
-				continue
-			}
-			i = i.root()
-
-			// Adjust the remaining neighbors that the island border
-			// cell is waiting for.
-			if n > 1 {
-				m[p] = islandBorder{i, n - 1}
-			} else {
-				// Found last neighbor of this island border.
-				// We can now forget about it.
-				delete(m, p)
-			}
-			// Add i to list of neighbors of the current cell c.
-			adj++
-			for a := range neighbors {
-				if i == neighbors[a].i {
-					neighbors[a].n++
-					continue outer
-				}
-			}
-			neighbors = append(neighbors, islandCount{i, 1})
-		}
-
-		switch len(neighbors) {
-		case 0:
-			// Cell makes a new island.
-			i := &island{peak: c, parent: nil}
+	for cslice := range r {
+		for _, c := range cslice {
 			if debug {
-				fmt.Printf("  new island %p\n", i)
+				fmt.Printf("@%v\n", c)
 			}
-			m[c.p] = islandBorder{i, 4}
-
-		case 1:
-			// Cell attaches to a single island.
-			i := neighbors[0].i
-			if debug {
-				fmt.Printf("  enlarge island %p\n", i)
+			if len(m) > maxm {
+				maxm = len(m)
 			}
-			if adj != 4 {
-				m[c.p] = islandBorder{i, 4 - adj}
-			}
+			// Find unique neighboring islands of c plus their frequency.
+			neighbors := neighborStore[:0]
+			adj := 0
+		outer:
+			for _, d := range [4][2]coord{{0, 1}, {0, -1}, {1, 0}, {-1, 0}} {
+				// Find out which island is in this direction.
+				p := point{c.p.x + d[0], c.p.y + d[1]}
 
-		default:
-			// Connecting 2 or more islands.  This case identifies
-			// a key col.  It is the key col for all the non-dominant
-			// islands that are being joined.
-
-			// Find the dominant island.
-			i := neighbors[0].i
-			for _, q := range neighbors[1:] {
-				if q.i.peak.z > i.peak.z {
-					i = q.i
+				// Earth wraps around left-right
+				if p.x == maxx {
+					p.x = minx
 				}
-			}
+				if p.x == minx-1 {
+					p.x = maxx - 1
+				}
 
-			// Emit c as the col for non-dominant islands.
-			// Join non-dominant islands to i.
-			for _, z := range neighbors {
-				j := z.i
-				if i == j {
+				b := m[p]
+				i := b.i
+				n := b.n
+				if i == nil {
+					// No island is in this direction.
 					continue
 				}
-				if debug {
-					fmt.Printf("  col (joining %p into %p)\n", j, i)
-					fmt.Printf("  prominence of %v is %d (key col %v to %v)\n", j.peak, j.peak.z-c.z, c, i.peak)
-				}
-				if j.peak.z-c.z > 0 {
-					f(j.peak, c, i.peak, false)
-				}
-				// Note: the j.peak.z-c.z == 0 case is unfortunate.
-				// If we have a situation like 334 we generate an island
-				// for the leftmost 3, then join it into the 4 island when
-				// we process the middle 3 (if we happen to do the 3s in
-				// that order).  If we had processed the 3s in the opposite
-				// order, we would have never generated that temporary
-				// island and incurred that additional overhead.
-				// I tried joining patches of connected uniform height areas
-				// (see patch.go) but the case when we allocate 0-prominence
-				// islands just doesn't happen that often.
+				i = i.root()
 
-				// Join islands.  We do joining lazily (see island.root()).
-				j.parent = i
+				// Adjust the remaining neighbors that the island border
+				// cell is waiting for.
+				if n > 1 {
+					m[p] = islandBorder{i, n - 1}
+				} else {
+					// Found last neighbor of this island border.
+					// We can now forget about it.
+					delete(m, p)
+				}
+				// Add i to list of neighbors of the current cell c.
+				adj++
+				for a := range neighbors {
+					if i == neighbors[a].i {
+						neighbors[a].n++
+						continue outer
+					}
+				}
+				neighbors = append(neighbors, islandCount{i, 1})
 			}
 
-			// Add col point itself to the dominant island.
-			if adj != 4 {
-				m[c.p] = islandBorder{i, 4 - adj}
+			switch len(neighbors) {
+			case 0:
+				// Cell makes a new island.
+				i := &island{peak: c, parent: nil}
+				if debug {
+					fmt.Printf("  new island %p\n", i)
+				}
+				m[c.p] = islandBorder{i, 4}
+
+			case 1:
+				// Cell attaches to a single island.
+				i := neighbors[0].i
+				if debug {
+					fmt.Printf("  enlarge island %p\n", i)
+				}
+				if adj != 4 {
+					m[c.p] = islandBorder{i, 4 - adj}
+				}
+
+			default:
+				// Connecting 2 or more islands.  This case identifies
+				// a key col.  It is the key col for all the non-dominant
+				// islands that are being joined.
+
+				// Find the dominant island.
+				i := neighbors[0].i
+				for _, q := range neighbors[1:] {
+					if q.i.peak.z > i.peak.z {
+						i = q.i
+					}
+				}
+
+				// Emit c as the col for non-dominant islands.
+				// Join non-dominant islands to i.
+				for _, z := range neighbors {
+					j := z.i
+					if i == j {
+						continue
+					}
+					if debug {
+						fmt.Printf("  col (joining %p into %p)\n", j, i)
+						fmt.Printf("  prominence of %v is %d (key col %v to %v)\n", j.peak, j.peak.z-c.z, c, i.peak)
+					}
+					if j.peak.z-c.z > 0 {
+						f(j.peak, c, i.peak, false)
+					}
+					// Note: the j.peak.z-c.z == 0 case is unfortunate.
+					// If we have a situation like 334 we generate an island
+					// for the leftmost 3, then join it into the 4 island when
+					// we process the middle 3 (if we happen to do the 3s in
+					// that order).  If we had processed the 3s in the opposite
+					// order, we would have never generated that temporary
+					// island and incurred that additional overhead.
+					// I tried joining patches of connected uniform height areas
+					// (see patch.go) but the case when we allocate 0-prominence
+					// islands just doesn't happen that often.
+
+					// Join islands.  We do joining lazily (see island.root()).
+					j.parent = i
+				}
+
+				// Add col point itself to the dominant island.
+				if adj != 4 {
+					m[c.p] = islandBorder{i, 4 - adj}
+				}
 			}
 		}
 	}

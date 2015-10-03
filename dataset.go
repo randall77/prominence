@@ -15,9 +15,10 @@ type dataSet interface {
 	// minz <= z < maxz
 	Bounds() (minx, maxx, miny, maxy coord, minz, maxz height)
 
-	// Returns a reader which will return all samples in the data set.
-	// Multiple calls to Reader return independent readers.
-	Reader() reader
+	// Returns a channel of all samples in the data set.
+	// For efficiency, we send a chunk of samples at a time.
+	// Multiple calls to Reader return independent channels.
+	Reader() <-chan []cell
 
 	// Pos converts from the internal integral coordinate system
 	// to standard coordinates.  lat and long are in degrees.
@@ -26,8 +27,3 @@ type dataSet interface {
 	// long is degrees east from the prime meridian (-180 to 180).
 	Pos(c cell) (lat, long, height float64)
 }
-
-// A reader is an iterator over the sample data.  When there is more
-// data, the reader returns another cell of data and true.  When there
-// is no more data, it returns the zero cell and false.
-type reader func() (cell, bool)
