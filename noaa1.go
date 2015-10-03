@@ -62,7 +62,8 @@ func (file noaa1) Reader() <-chan []cell {
 			}
 			cnt++
 		}
-		chunker.close()
+		chunker.flush()
+		close(c)
 	}()
 	return c
 }

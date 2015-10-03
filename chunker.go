@@ -25,12 +25,12 @@ func (cc *cellChunker) send(c cell) {
 	cc.buf = append(buf, c)
 }
 
-// close makes sure all cells are sent, then closes the underlying channel.
-func (cc *cellChunker) close() {
+// flush sends all pending cells, now.
+func (cc *cellChunker) flush() {
 	if len(cc.buf) > 0 {
 		cc.c <- cc.buf
+		cc.buf = nil
 	}
-	close(cc.c)
 }
 
 // A pool of unused buffers

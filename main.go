@@ -7,11 +7,14 @@ import (
 	"image/png"
 	"log"
 	"os"
+	"runtime"
 	"runtime/pprof"
 )
 
 var formatPtr = flag.String("format", "test", "format of input file (test, noaa1, noaa16)")
 var minPtr = flag.Float64("min", 100, "minimum prominence to display (meters)")
+var tmpDirPtr = flag.String("tmpdir", "", "temporary directory for external sort")
+var P = flag.Int("P", runtime.NumCPU(), "width of parallel processing")
 
 func main() {
 	flag.Parse()

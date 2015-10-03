@@ -1,79 +1,100 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
+	"sync"
 	"unsafe"
 )
 
+const bufSize = 1024
+
+type fileRange struct {
+	off int64
+	len int
+}
+
 // cellSort externally sorts the cells in descending altitude order.
-// The sort is stable to keep adjacent cells together (not required,
-// but might help performance).
 // Returns a channel producing the sorted data.
 func cellSort(r <-chan []cell) <-chan []cell {
-	// Make a temp directory for the external sort.
-	dir, err := ioutil.TempDir("", "prominenceAltitudeSort")
+	// Make a temp file for the external sort.
+	f, err := ioutil.TempFile(*tmpDirPtr, "prominenceAltitudeSort")
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Note: this defer will delete the directory before we're
-	// done reading back the contents.  That's ok, we keep all
-	// the files we need to read open.  Some OSes might choke
-	// on this behavior.
-	defer os.Remove(dir)
+	// Remove the file to keep the filesystem clean.
+	// Note: this call deletes the file before we've even used it.
+	// That's ok, we keep the file open.  At least most OSes do
+	// the right thing here.
+	os.Remove(f.Name())
 
-	// Keep track of write buffers, one for each altitude
-	files := map[height]*os.File{}
-	wbufs := map[height]*bufio.Writer{}
+	// Keep track of which file ranges hold data from each altitude.
+	var lock sync.Mutex
+	ranges := map[height][]fileRange{}
 
-	// Read all the data, write it to temporary files, one for
-	// each altitude.
-	for cslice := range r {
-		for _, c := range cslice {
-			w, ok := wbufs[c.z]
-			if !ok {
-				// Haven't seen this altitude before.
-				// Allocate file for this altitude.
-				name := filepath.Join(dir, fmt.Sprintf("z%d", c.z))
-				f, err := os.Create(name)
+	// Read all the cells, write them to the temporary file in groups
+	// of identical altitude points.
+	var wg sync.WaitGroup
+	wg.Add(*P)
+	for i := 0; i < *P; i++ {
+		go func() {
+			// Keep a write buffer for each altitude.
+			wbufs := map[height]*wbuf{}
+			for cslice := range r {
+				for _, c := range cslice {
+					w := wbufs[c.z]
+					if w == nil {
+						w = &wbuf{}
+						wbufs[c.z] = w
+					}
+					if w.n == len(w.buf) {
+						// Write full buffer to the temp file.
+						b := int(unsafe.Sizeof(w.buf))
+						s := *(*[]byte)(unsafe.Pointer(&slice{unsafe.Pointer(&w.buf), b, b}))
+						lock.Lock()
+						off, err := f.Seek(0, 1)
+						if err != nil {
+							log.Fatal(err)
+						}
+						_, err = f.Write(s)
+						if err != nil {
+							log.Fatal(err)
+						}
+						ranges[c.z] = append(ranges[c.z], fileRange{off, b})
+						lock.Unlock()
+						w.n = 0
+					}
+					w.buf[w.n] = c.p
+					w.n++
+				}
+				chunkPool.Put(cslice)
+			}
+			// Write any remaining parital buffers to the temp file.
+			for h, w := range wbufs {
+				b := w.n * int(unsafe.Sizeof(point{}))
+				s := *(*[]byte)(unsafe.Pointer(&slice{unsafe.Pointer(&w.buf), b, b}))
+				lock.Lock()
+				off, err := f.Seek(0, 1)
 				if err != nil {
 					log.Fatal(err)
 				}
-				// Immediately remove the file, so that the containing
-				// directory will get deleted upon completion or error.
-				os.Remove(name)
-
-				// Allocate buffer for writing.
-				w = bufio.NewWriterSize(f, 1024)
-
-				// Save file and buffered writer.
-				files[c.z] = f
-				wbufs[c.z] = w
+				_, err = f.Write(s)
+				if err != nil {
+					log.Fatal(err)
+				}
+				ranges[h] = append(ranges[h], fileRange{off, b})
+				lock.Unlock()
 			}
-			var b [unsafe.Sizeof(point{})]byte
-			*(*point)(unsafe.Pointer(&b)) = c.p
-			_, err = w.Write(b[:])
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-		chunkPool.Put(cslice)
+			wg.Done()
+		}()
 	}
-
-	// Flush writers.
-	for _, w := range wbufs {
-		w.Flush()
-	}
+	wg.Wait()
 
 	// Compute descending altitude order.
-	alts := make([]int, 0, len(files))
-	for h := range files {
+	alts := make([]int, 0, len(ranges))
+	for h := range ranges {
 		alts = append(alts, int(h))
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(alts)))
@@ -81,31 +102,41 @@ func cellSort(r <-chan []cell) <-chan []cell {
 	// Make a channel and shove the sorted data into it.
 	c := make(chan []cell, 1)
 	go func() {
+		var points [bufSize]point
 		var chunker cellChunker
 		chunker.c = c
 		for _, a := range alts {
 			h := height(a)
 
-			// Read temporary file, send cells out.
-			f := files[h]
-			if _, err := f.Seek(0, 0); err != nil {
-				log.Fatal(err)
-			}
-			buf := bufio.NewReader(f)
-			for {
-				var b [unsafe.Sizeof(point{})]byte
-				_, err := buf.Read(b[:])
-				if err == io.EOF {
-					break
+			// Read chunks from temporary file.
+			for _, rng := range ranges[h] {
+				b := rng.len
+				if b > int(unsafe.Sizeof(points)) {
+					log.Fatal("block too big")
 				}
+				s := *(*[]byte)(unsafe.Pointer(&slice{unsafe.Pointer(&points), b, b}))
+				_, err := f.ReadAt(s, rng.off)
 				if err != nil {
 					log.Fatal(err)
 				}
-				chunker.send(cell{*(*point)(unsafe.Pointer(&b)), h})
+				for i := 0; i < b/int(unsafe.Sizeof(point{})); i++ {
+					chunker.send(cell{points[i], h})
+				}
 			}
-			f.Close()
 		}
-		chunker.close()
+		chunker.flush()
+		close(c)
 	}()
 	return c
+}
+
+type wbuf struct {
+	buf [bufSize]point
+	n   int
+}
+
+type slice struct {
+	p unsafe.Pointer
+	l int
+	c int
 }

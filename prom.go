@@ -134,7 +134,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 	// in memory.  Hopefully it doesn't get too big.
 	// On the NOAA-GLOBE data, the maximum size of m is only
 	// about 2% of the total number of samples.
-	m := map[point]islandBorder{}
+	m := newmap()
 	// TODO: build our own map?  We could probably use a simpler
 	// hash function, resizer, etc.  A lot of our time is spent
 	// in the m[p] lookup & assignment below.
@@ -148,8 +148,8 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 			if debug {
 				fmt.Printf("@%v\n", c)
 			}
-			if len(m) > maxm {
-				maxm = len(m)
+			if m.size() > maxm {
+				maxm = m.size()
 			}
 			// Find unique neighboring islands of c plus their frequency.
 			neighbors := neighborStore[:0]
@@ -167,24 +167,13 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 					p.x = maxx - 1
 				}
 
-				b := m[p]
-				i := b.i
-				n := b.n
+				i := m.find(p)
 				if i == nil {
 					// No island is in this direction.
 					continue
 				}
 				i = i.root()
 
-				// Adjust the remaining neighbors that the island border
-				// cell is waiting for.
-				if n > 1 {
-					m[p] = islandBorder{i, n - 1}
-				} else {
-					// Found last neighbor of this island border.
-					// We can now forget about it.
-					delete(m, p)
-				}
 				// Add i to list of neighbors of the current cell c.
 				adj++
 				for a := range neighbors {
@@ -203,7 +192,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 				if debug {
 					fmt.Printf("  new island %p\n", i)
 				}
-				m[c.p] = islandBorder{i, 4}
+				m.insert(c.p, i, 4)
 
 			case 1:
 				// Cell attaches to a single island.
@@ -212,7 +201,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 					fmt.Printf("  enlarge island %p\n", i)
 				}
 				if adj != 4 {
-					m[c.p] = islandBorder{i, 4 - adj}
+					m.insert(c.p, i, 4-adj)
 				}
 
 			default:
@@ -259,7 +248,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 
 				// Add col point itself to the dominant island.
 				if adj != 4 {
-					m[c.p] = islandBorder{i, 4 - adj}
+					m.insert(c.p, i, 4-adj)
 				}
 			}
 		}
@@ -274,8 +263,8 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 	// Report remaining islands, which are now islands in the
 	// real sense.  Their prominence is equal to their altitude.
 	islands := map[*island]struct{}{}
-	for _, b := range m {
-		i := b.i.root()
+	for _, i := range m.contents() {
+		i = i.root()
 		if _, ok := islands[i]; ok {
 			// already know about this island
 			continue
