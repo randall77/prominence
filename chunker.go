@@ -1,8 +1,8 @@
 package main
 
+import "sync"
+
 // A type for chunking up the sending of cells over a channel
-// TODO: figure out how to do this without creating garbage.
-// Recycle buffers with a sync.Pool, perhaps?
 
 // A cellChunker gathers batches of cells to send over a []cell channel.
 type cellChunker struct {
@@ -16,7 +16,12 @@ func (cc *cellChunker) send(c cell) {
 		if len(cc.buf) > 0 {
 			cc.c <- cc.buf
 		}
-		cc.buf = make([]cell, 0, 1024)
+		i := chunkPool.Get()
+		if i != nil {
+			cc.buf = i.([]cell)[:0]
+		} else {
+			cc.buf = make([]cell, 0, 1024)
+		}
 	}
 	cc.buf = append(cc.buf, c)
 }
@@ -28,3 +33,6 @@ func (cc *cellChunker) close() {
 	}
 	close(cc.c)
 }
+
+// A pool of buffers
+var chunkPool sync.Pool

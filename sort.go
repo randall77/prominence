@@ -63,6 +63,7 @@ func cellSort(r <-chan []cell) <-chan []cell {
 				log.Fatal(err)
 			}
 		}
+		chunkPool.Put(cslice)
 	}
 
 	// Compute descending altitude order.

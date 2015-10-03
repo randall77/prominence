@@ -263,6 +263,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 				}
 			}
 		}
+		chunkPool.Put(cslice)
 	}
 
 	//fmt.Println("remaining border")
