@@ -123,7 +123,6 @@ func (file srtm3) Reader() <-chan []cell {
 					chunker.flush()
 				}
 				z.Close()
-				log.Print("done reading " + name)
 			}
 			wg.Done()
 		}()
