@@ -52,7 +52,7 @@ func (file srtm3) Reader() <-chan []cell {
 	}()
 
 	// Return channel
-	c := make(chan []cell, 1)
+	c := make(chan []cell, *P)
 
 	// Use P workers to process all the work
 	var wg sync.WaitGroup

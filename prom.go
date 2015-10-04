@@ -153,7 +153,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 			}
 			// Find unique neighboring islands of c plus their frequency.
 			neighbors := neighborStore[:0]
-			adj := 0
+			var adj int8
 		outer:
 			for _, d := range [4][2]coord{{0, 1}, {0, -1}, {1, 0}, {-1, 0}} {
 				// Find out which island is in this direction.
