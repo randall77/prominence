@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 // A (hopefully) faster map than the generic maps.
 //
 // Implements map[point]islandBorder{}
@@ -126,49 +124,49 @@ func (m *hashmap) insert(p point, i *island, c int8) {
 		if b.c[0] == 0 {
 			b.p[0] = p
 			b.i[0] = i
-			b.c[0] = int8(c)
+			b.c[0] = c
 			return
 		}
 		if b.c[1] == 0 {
 			b.p[1] = p
 			b.i[1] = i
-			b.c[1] = int8(c)
+			b.c[1] = c
 			return
 		}
 		if b.c[2] == 0 {
 			b.p[2] = p
 			b.i[2] = i
-			b.c[2] = int8(c)
+			b.c[2] = c
 			return
 		}
 		if b.c[3] == 0 {
 			b.p[3] = p
 			b.i[3] = i
-			b.c[3] = int8(c)
+			b.c[3] = c
 			return
 		}
 		if b.c[4] == 0 {
 			b.p[4] = p
 			b.i[4] = i
-			b.c[4] = int8(c)
+			b.c[4] = c
 			return
 		}
 		if b.c[5] == 0 {
 			b.p[5] = p
 			b.i[5] = i
-			b.c[5] = int8(c)
+			b.c[5] = c
 			return
 		}
 		if b.c[6] == 0 {
 			b.p[6] = p
 			b.i[6] = i
-			b.c[6] = int8(c)
+			b.c[6] = c
 			return
 		}
 		if b.c[7] == 0 {
 			b.p[7] = p
 			b.i[7] = i
-			b.c[7] = int8(c)
+			b.c[7] = c
 			return
 		}
 		if b.ovf != nil {
@@ -201,8 +199,8 @@ func (m *hashmap) contents() []*island {
 func (m *hashmap) grow() {
 	oldb := m.b
 	newb := make([]bucket, len(oldb)*2)
-	fmt.Println("grow")
 
+	m.n = 0
 	m.b = newb
 	for i := range oldb {
 		b := &oldb[i]

@@ -135,9 +135,6 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 	// On the NOAA-GLOBE data, the maximum size of m is only
 	// about 2% of the total number of samples.
 	m := newmap()
-	// TODO: build our own map?  We could probably use a simpler
-	// hash function, resizer, etc.  A lot of our time is spent
-	// in the m[p] lookup & assignment below.
 	maxm := 0
 
 	var neighborStore [4]islandCount
