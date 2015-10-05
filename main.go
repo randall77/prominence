@@ -105,22 +105,33 @@ func main() {
 }
 
 // locString returns a human-readable location string for c, like:
-//   12.0376°N   3.8752°W  678m
+//   12°03'55"N   3°23'52"W  678m
 func locString(d dataSet, c cell) string {
 	x, y, z := d.Pos(c)
 	s := ""
 	if y >= 0 {
-		s += fmt.Sprintf("%8.4f°N", y)
+		s += deg(y) + "N"
 	} else {
-		s += fmt.Sprintf("%8.4f°S", -y)
+		s += deg(-y) + "S"
 	}
 	s += " "
 	if x >= 0 {
-		s += fmt.Sprintf("%8.4f°E", x)
+		s += deg(x) + "E"
 	} else {
-		s += fmt.Sprintf("%8.4f°W", -x)
+		s += deg(-x) + "W"
 	}
 	s += " "
 	s += fmt.Sprintf("%4.0fm", z)
 	return s
+}
+
+func deg(x float64) string {
+	d := int(x)
+	x -= float64(d)
+	x *= 60
+	m := int(x)
+	x -= float64(m)
+	x *= 60
+	s := int(x + .5)
+	return fmt.Sprintf("%3d°%02d'%02d\"", d, m, s)
 }

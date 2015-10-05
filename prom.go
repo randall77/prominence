@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"unsafe"
 )
 
@@ -276,5 +277,5 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 	size := int(unsafe.Sizeof(point{}) + unsafe.Sizeof(islandBorder{})) // one entry
 	size *= maxm                                                        // all entries
 	size *= 2                                                           // approx. map overhead
-	fmt.Printf("approx mem used: %d MB\n", size/(1<<20))
+	log.Printf("approx mem used: %d MB\n", size/(1<<20))
 }
