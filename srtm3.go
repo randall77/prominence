@@ -54,11 +54,13 @@ func (file srtm3) Reader() <-chan []cell {
 	// Return channel
 	c := make(chan []cell, *P)
 
-	// Use P workers to process all the work
+	// Use P workers to do all the decompression.
 	var wg sync.WaitGroup
 	wg.Add(*P)
 	for i := 0; i < *P; i++ {
 		go func() {
+			var chunker cellChunker
+			chunker.c = c
 			for name := range work {
 				log.Print("reading " + name)
 
@@ -103,8 +105,6 @@ func (file srtm3) Reader() <-chan []cell {
 					// Adjust for all of that.
 					y -= 1200
 
-					var chunker cellChunker
-					chunker.c = c
 					for i := 0; i < 1200; i++ {
 						for j := 0; j < 1200; j++ {
 							z := height(int16(int(b[0])<<8 + int(b[1])))
@@ -117,14 +117,15 @@ func (file srtm3) Reader() <-chan []cell {
 							}
 							chunker.send(cell{point{coord(x + j), coord(y + i)}, z})
 						}
-						b = b[2:] // tiles have 1201 columns - the last one is the first column of the next tile
+						// tiles have 1201 columns - the last column is equal to
+						// the first column of the next tile.
+						b = b[2:]
 					}
 					f.Close()
-					chunker.flush()
 				}
 				z.Close()
-				log.Print("done reading " + name)
 			}
+			chunker.flush()
 			wg.Done()
 		}()
 	}
