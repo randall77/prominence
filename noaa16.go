@@ -43,6 +43,9 @@ var offsets = map[byte]struct{ size, x, y int }{
 
 type noaa16 string
 
+func (file noaa16) Init() {
+}
+
 func (file noaa16) Bounds() (minx, maxx coord, miny, maxy coord, minz, maxz height) {
 	return 0, 10800 * 4, 0, 4800*2 + 6000*2, -499, 8849
 }

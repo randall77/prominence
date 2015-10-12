@@ -47,9 +47,13 @@ func main() {
 		data = noaa16(flag.Arg(0))
 	case "srtm3":
 		data = srtm3(flag.Arg(0))
+	case "stream":
+		data = &stream{r: os.Stdin}
 	default:
 		panic("unknown format " + *formatPtr)
 	}
+
+	data.Init()
 
 	// Get a reader for all the sample points.
 	r := data.Reader()

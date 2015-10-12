@@ -9,6 +9,9 @@ package main
 // Samples which are at sea level do not need to be
 // considered part of the dataSet.
 type dataSet interface {
+	// Init performs any once-only initialization.
+	Init()
+
 	// Bounds returns bounds on the returned cells.
 	// minx <= x < maxx
 	// miny <= y < maxy

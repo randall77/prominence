@@ -16,6 +16,9 @@ import (
 
 type srtm3 string
 
+func (file srtm3) Init() {
+}
+
 func (file srtm3) Bounds() (minx, maxx coord, miny, maxy coord, minz, maxz height) {
 	return 0, 432000, 0, 216000, -499, 8849
 }

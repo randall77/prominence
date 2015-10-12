@@ -4,6 +4,9 @@ package main
 //  It has trivial mappings to real-world coordinates.
 type simpleDataSet []cell
 
+func (file simpleDataSet) Init() {
+}
+
 func (data simpleDataSet) Bounds() (minx, maxx coord, miny, maxy coord, minz, maxz height) {
 	minx = data[0].p.x
 	maxx = minx

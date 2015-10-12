@@ -22,6 +22,9 @@ import (
 
 type noaa1 string
 
+func (file noaa1) Init() {
+}
+
 func (file noaa1) Bounds() (minx, maxx coord, miny, maxy coord, minz, maxz height) {
 	// For the E tile (~western North America)
 	return 0, 10800, 0, 6000, -499, 8849
