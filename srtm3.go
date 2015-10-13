@@ -14,12 +14,17 @@ import (
 // Importer for SRTM3 Data
 // http://dds.cr.usgs.gov/srtm/version2_1/SRTM3
 
+const hawaii = true
+
 type srtm3 string
 
 func (file srtm3) Init() {
 }
 
 func (file srtm3) Bounds() (minx, maxx coord, miny, maxy coord, minz, maxz height) {
+	if hawaii {
+		return 19 * 1200, 26 * 1200, (90 - 23) * 1200, (90 - 18) * 1200, -499, 8849
+	}
 	return 0, 432000, 0, 216000, -499, 8849
 }
 
@@ -76,6 +81,16 @@ func (file srtm3) Reader() <-chan []cell {
 				}
 				if ew == "W" {
 					e = -e
+				}
+
+				// Restrict to Hawaii
+				if hawaii {
+					if n <= 18 || n >= 23 {
+						continue
+					}
+					if e <= -161 || e >= -154 {
+						continue
+					}
 				}
 
 				// Extract tile data from zip file
