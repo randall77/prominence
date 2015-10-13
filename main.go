@@ -11,7 +11,7 @@ import (
 	"runtime/pprof"
 )
 
-var formatPtr = flag.String("format", "test", "format of input file (test, noaa1, noaa16)")
+var formatPtr = flag.String("format", "test", "format of input file (test, noaa1, noaa16, srtm3, stream)")
 var minPtr = flag.Float64("min", 100, "minimum prominence to display (meters)")
 var tmpDirPtr = flag.String("tmpdir", "", "temporary directory for external sort")
 var P = flag.Int("P", runtime.NumCPU(), "width of parallel processing")
@@ -86,6 +86,14 @@ func main() {
 		w.Close()
 	}()
 
+	kml, err := os.Create("globe.kml")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprintln(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
+	fmt.Fprintln(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">")
+	fmt.Fprintln(kml, "<Folder>")
+
 	computeProminence(r2, minx, maxx, func(peak, col, dom cell, size int64, island bool) {
 		prom := peak.z - col.z
 		_, _, meters := data.Pos(cell{point{minx, miny}, prom})
@@ -107,7 +115,18 @@ func main() {
 				locString(data, col),
 				locString(data, dom))
 		}
+		fmt.Fprintln(kml, "  <Placemark>")
+		fmt.Fprintln(kml, "    <Point>")
+		x, y, z := data.Pos(peak)
+		fmt.Fprintf(kml, "       <coordinates>%f,%f</coordinates>\n", x, y)
+		fmt.Fprintln(kml, "    </Point>")
+		fmt.Fprintf(kml, "   <description><![CDATA[height=%.0f<br>prominence=%.0f]]></description>\n", z, meters)
+		fmt.Fprintln(kml, "  </Placemark>")
 	})
+
+	fmt.Fprintln(kml, "</Folder>")
+	fmt.Fprintln(kml, "</kml>")
+	kml.Close()
 
 	pprof.StopCPUProfile()
 }
