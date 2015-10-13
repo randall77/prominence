@@ -15,6 +15,7 @@ var formatPtr = flag.String("format", "test", "format of input file (test, noaa1
 var minPtr = flag.Float64("min", 100, "minimum prominence to display (meters)")
 var tmpDirPtr = flag.String("tmpdir", "", "temporary directory for external sort")
 var P = flag.Int("P", runtime.NumCPU(), "width of parallel processing")
+var minSize = flag.Int64("minsize", 100, "minimum island size to display (# samples)")
 
 func main() {
 	flag.Parse()
@@ -85,20 +86,23 @@ func main() {
 		w.Close()
 	}()
 
-	computeProminence(r2, minx, maxx, func(peak, col, dom cell, island bool) {
+	computeProminence(r2, minx, maxx, func(peak, col, dom cell, size int64, island bool) {
 		prom := peak.z - col.z
 		_, _, meters := data.Pos(cell{point{minx, miny}, prom})
 		if meters < *minPtr {
 			return
 		}
+		if size < *minSize {
+			return
+		}
 
 		if island {
-			fmt.Printf("prominence of %s is %4.0fm (to sea level)\n",
-				locString(data, peak),
+			fmt.Printf("prominence of %s [%9d] is %4.0fm (to sea level)\n",
+				locString(data, peak), size,
 				meters)
 		} else {
-			fmt.Printf("prominence of %s is %4.0fm (key col %s to %s)\n",
-				locString(data, peak),
+			fmt.Printf("prominence of %s [%9d] is %4.0fm (key col %s to %s)\n",
+				locString(data, peak), size,
 				meters,
 				locString(data, col),
 				locString(data, dom))
@@ -108,21 +112,27 @@ func main() {
 	pprof.StopCPUProfile()
 }
 
+const minsec = false
+
 // locString returns a human-readable location string for c, like:
 //   12°03'55"N   3°23'52"W  678m
 func locString(d dataSet, c cell) string {
 	x, y, z := d.Pos(c)
 	s := ""
-	if y >= 0 {
-		s += deg(y) + "N"
+	if minsec {
+		if y >= 0 {
+			s += deg(y) + "N"
+		} else {
+			s += deg(-y) + "S"
+		}
+		s += " "
+		if x >= 0 {
+			s += deg(x) + "E"
+		} else {
+			s += deg(-x) + "W"
+		}
 	} else {
-		s += deg(-y) + "S"
-	}
-	s += " "
-	if x >= 0 {
-		s += deg(x) + "E"
-	} else {
-		s += deg(-x) + "W"
+		s += fmt.Sprintf("%8.4f %8.4f", x, y)
 	}
 	s += " "
 	s += fmt.Sprintf("%4.0fm", z)

@@ -67,6 +67,8 @@ func (c cell) String() string {
 type island struct {
 	// peak is the highest point in the island
 	peak cell
+	// # of cells comprising this island
+	size int64
 	// when this island is joined to another, parent points to the containing island.
 	parent *island
 }
@@ -112,7 +114,7 @@ type islandCount struct {
 //   col = key col for that peak
 //   dom = dominating peak
 //   island = is top of an island (or continent).
-func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom cell, island bool)) {
+func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom cell, size int64, island bool)) {
 	// Turns out patches don't really help much.
 	// At least for NOAA-OCEAN, the average patch
 	// size is 1.15.  For finer grids it may help more and
@@ -186,7 +188,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 			switch len(neighbors) {
 			case 0:
 				// Cell makes a new island.
-				i := &island{peak: c, parent: nil}
+				i := &island{peak: c, size: 1, parent: nil}
 				if debug {
 					fmt.Printf("  new island %p\n", i)
 				}
@@ -198,6 +200,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 				if debug {
 					fmt.Printf("  enlarge island %p\n", i)
 				}
+				i.size++
 				if adj != 4 {
 					m.insert(c.p, i, 4-adj)
 				}
@@ -227,7 +230,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 						fmt.Printf("  prominence of %v is %d (key col %v to %v)\n", j.peak, j.peak.z-c.z, c, i.peak)
 					}
 					if j.peak.z-c.z > 0 {
-						f(j.peak, c, i.peak, false)
+						f(j.peak, c, i.peak, i.size, false)
 					}
 					// Note: the j.peak.z-c.z == 0 case is unfortunate.
 					// If we have a situation like 334 we generate an island
@@ -242,9 +245,11 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 
 					// Join islands.  We do joining lazily (see island.root()).
 					j.parent = i
+					i.size += j.size
 				}
 
 				// Add col point itself to the dominant island.
+				i.size++
 				if adj != 4 {
 					m.insert(c.p, i, 4-adj)
 				}
@@ -271,7 +276,7 @@ func computeProminence(r <-chan []cell, minx, maxx coord, f func(peak, col, dom 
 		if debug {
 			fmt.Printf("island %p: @%v\n", i, i.peak)
 		}
-		f(i.peak, cell{}, cell{}, true)
+		f(i.peak, cell{}, cell{}, i.size, true)
 	}
 
 	size := int(unsafe.Sizeof(point{}) + unsafe.Sizeof(islandBorder{})) // one entry
